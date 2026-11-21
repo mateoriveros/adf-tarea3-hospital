@@ -1,0 +1,115 @@
+{
+	"name": "dfd_silver_diagnoses",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_bronze_diagnoses",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_silver_admissions",
+						"type": "DatasetReference"
+					},
+					"name": "source2"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_diagnoses",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "derivedColumn2"
+				},
+				{
+					"name": "split1"
+				},
+				{
+					"name": "exists1"
+				},
+				{
+					"name": "aggregate1"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          diagnosis_id as string,",
+				"          admission_id as string,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source1",
+				"source(output(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source2",
+				"source1 derive(diagnosis_id = toInteger(trim(diagnosis_id)),",
+				"          admission_id = toInteger(trim(admission_id)),",
+				"          diagnosis_description = trim(diagnosis_description),",
+				"          icd_raw = regexReplace(upper(trim(split(icd_code, ',')[1])), '[^A-Z0-9]', ''),",
+				"          severity = case( lower(trim(severity)) == 'mild', 'Mild',                            lower(trim(severity)) == 'moderate', 'Moderate',                            lower(trim(severity)) == 'severe', 'Severe',                            lower(trim(severity)) == 'critical', 'Critical',                            toString(null()))) ~> derivedColumn1",
+				"derivedColumn1 derive(icd_code = case( isNull(icd_raw) || icd_raw == '', toString(null()),                length(icd_raw) > 3,                  concat(substring(icd_raw, 1, 3), '.', substring(icd_raw, 4, length(icd_raw))),                icd_raw)) ~> derivedColumn2",
+				"derivedColumn2 split(!isNull(diagnosis_id) && !isNull(admission_id) && !isNull(icd_code),",
+				"     disjoint: false) ~> split1@(validos, rechazados)",
+				"split1@validos, source2 exists(split1@validos@admission_id == source2@admission_id,",
+				"     negate:false,",
+				"     broadcast: 'auto')~> exists1",
+				"exists1 aggregate(groupBy(diagnosis_id),",
+				"     admission_id = first(admission_id),",
+				"          icd_code = first(icd_code),",
+				"          diagnosis_description = first(diagnosis_description),",
+				"          severity = first(severity)) ~> aggregate1",
+				"aggregate1 sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          diagnosis_id,",
+				"          admission_id,",
+				"          icd_code,",
+				"          diagnosis_description,",
+				"          severity",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
