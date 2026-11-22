@@ -1,0 +1,34 @@
+{
+	"name": "pl_gold",
+	"properties": {
+		"activities": [
+			{
+				"name": "sc_gold_preparar",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "ls_sql_dw_hospital",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "NonQuery",
+							"text": "-- 1) Limpieza (hijas antes que padres) y reinicio de claves automáticas\nDELETE FROM gold.fact_facturacion;\nDELETE FROM gold.fact_admisiones;\nDELETE FROM gold.dim_diagnostico;\nDELETE FROM gold.dim_servicio_cargo;\nDELETE FROM gold.dim_departamento;\nDELETE FROM gold.dim_paciente;\nDELETE FROM gold.dim_fecha;\nDBCC CHECKIDENT ('gold.fact_facturacion', RESEED, 0);\nDBCC CHECKIDENT ('gold.fact_admisiones', RESEED, 0);\nDBCC CHECKIDENT ('gold.dim_diagnostico', RESEED, 0);\nDBCC CHECKIDENT ('gold.dim_servicio_cargo', RESEED, 0);\nDBCC CHECKIDENT ('gold.dim_departamento', RESEED, 0);\nDBCC CHECKIDENT ('gold.dim_paciente', RESEED, 0);\n\n-- 2) Calendario 2023-2026\nDECLARE @ini DATE = '2023-01-01', @fin DATE = '2026-12-31';\nWITH n AS (\n  SELECT TOP (DATEDIFF(DAY, @ini, @fin) + 1)\n         ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 AS i\n  FROM sys.all_objects a CROSS JOIN sys.all_objects b\n), f AS (SELECT DATEADD(DAY, i, @ini) AS d FROM n)\nINSERT INTO gold.dim_fecha\n  (fecha_key, fecha_completa, anio, trimestre, trimestre_nombre, mes, mes_nombre,\n   mes_corto, semana_anio, dia_mes, dia_semana, dia_nombre, es_fin_de_semana)\nSELECT CONVERT(INT, CONVERT(CHAR(8), d, 112)), d, YEAR(d), DATEPART(QUARTER, d),\n       CONCAT('T', DATEPART(QUARTER, d)), MONTH(d),\n       CHOOSE(MONTH(d),'Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',\n                       'Agosto','Septiembre','Octubre','Noviembre','Diciembre'),\n       CHOOSE(MONTH(d),'Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'),\n       DATEPART(ISO_WEEK, d), DAY(d),\n       (DATEDIFF(DAY, '19000101', d) % 7) + 1,\n       CHOOSE((DATEDIFF(DAY, '19000101', d) % 7) + 1,\n              'Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'),\n       CASE WHEN (DATEDIFF(DAY, '19000101', d) % 7) + 1 >= 6 THEN 1 ELSE 0 END\nFROM f;\n\n-- 3) Fila para admisiones sin diagnóstico (queda con clave 1)\nINSERT INTO gold.dim_diagnostico (codigo_icd, descripcion_patologia, nivel_severidad)\nVALUES ('SIN-DX', 'Sin diagnóstico registrado', 'No especificado');"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			}
+		],
+		"annotations": []
+	}
+}
