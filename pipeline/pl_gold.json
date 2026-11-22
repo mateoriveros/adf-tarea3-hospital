@@ -200,6 +200,55 @@
 					},
 					"traceLevel": "Fine"
 				}
+			},
+			{
+				"name": "dfd_gold_fact_facturacion",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [
+					{
+						"activity": "dfd_gold_dim_paciente",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "dfd_gold_dim_servicio_cargo",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "dfd_gold_dim_departamento",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "dfd_gold_dim_diagnostico",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "dfd_gold_fact_facturacion",
+						"type": "DataFlowReference"
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
 			}
 		],
 		"annotations": []
