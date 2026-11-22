@@ -1,0 +1,85 @@
+{
+	"name": "dfd_gold_dim_paciente",
+	"properties": {
+		"folder": {
+			"name": "gold"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_patients",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_gold_dim_paciente",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          patient_id as integer,",
+				"          full_name as string,",
+				"          gender as string,",
+				"          date_of_birth as date,",
+				"          email as string,",
+				"          address as string,",
+				"          insurance_provider as string,",
+				"          edad as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT patient_id, full_name, gender, date_of_birth, email, address, insurance_provider,\\n       CASE WHEN date_of_birth IS NULL THEN NULL\\n            ELSE DATEDIFF(YEAR, date_of_birth, GETDATE())\\n                 - CASE WHEN DATEADD(YEAR, DATEDIFF(YEAR, date_of_birth, GETDATE()), date_of_birth)\\n                              > CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END\\n       END AS edad\\nFROM silver.patients',",
+				"     format: 'query') ~> source1",
+				"source1 derive(genero = case( gender == 'Male', 'Masculino',                        gender == 'Female', 'Femenino',                        'Otro'),",
+				"          rango_etario = case(  isNull(edad), toString(null()),                        edad <= 18, '0-18',                        edad <= 35, '19-35',                        edad <= 60, '36-60',                        '60+'),",
+				"          proveedor_seguro = iif(isNull(insurance_provider), 'No informado', insurance_provider)) ~> derivedColumn1",
+				"derivedColumn1 sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          paciente_key as integer,",
+				"          patient_id_bk as integer,",
+				"          nombre_completo as string,",
+				"          genero as string,",
+				"          fecha_nacimiento as date,",
+				"          rango_etario as string,",
+				"          correo_electronico as string,",
+				"          direccion as string,",
+				"          proveedor_seguro as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          patient_id_bk = patient_id,",
+				"          nombre_completo = full_name,",
+				"          genero,",
+				"          fecha_nacimiento = date_of_birth,",
+				"          rango_etario,",
+				"          correo_electronico = email,",
+				"          direccion = address,",
+				"          proveedor_seguro",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
