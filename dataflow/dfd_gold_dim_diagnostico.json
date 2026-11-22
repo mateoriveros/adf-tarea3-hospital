@@ -1,0 +1,75 @@
+{
+	"name": "dfd_gold_dim_diagnostico",
+	"properties": {
+		"folder": {
+			"name": "gold"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_diagnoses",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_gold_dim_diagnostico",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "aggregate1"
+				},
+				{
+					"name": "derivedColumn1"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source1",
+				"source1 aggregate(groupBy(icd_code,",
+				"          severity),",
+				"     conteo = count()) ~> aggregate1",
+				"aggregate1 derive(descripcion_patologia = case(   icd_code == 'C50.911', 'Neoplasia maligna de mama (sitio no especificado)',   icd_code == 'E11.9',   'Diabetes mellitus tipo 2 sin complicaciones',   icd_code == 'F32.9',   'Trastorno depresivo mayor, episodio único, no especificado',   icd_code == 'I10',     'Hipertensión esencial (primaria)',   icd_code == 'J45.909', 'Asma no especificada, sin complicaciones',   icd_code == 'K21.9',   'Enfermedad por reflujo gastroesofágico sin esofagitis',   icd_code == 'M54.5',   'Dolor lumbar bajo',   icd_code == 'N39.0',   'Infección de vías urinarias, sitio no especificado',   icd_code == 'R51',     'Cefalea',   icd_code == 'S72.001A','Fractura de cuello de fémur (no especificada, primer encuentro)',   'Sin descripción')) ~> derivedColumn1",
+				"derivedColumn1 sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          diagnostico_key as integer,",
+				"          codigo_icd as string,",
+				"          descripcion_patologia as string,",
+				"          nivel_severidad as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          codigo_icd = icd_code,",
+				"          descripcion_patologia,",
+				"          nivel_severidad = severity",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
