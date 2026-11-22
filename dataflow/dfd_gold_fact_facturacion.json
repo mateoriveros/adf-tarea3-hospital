@@ -1,0 +1,153 @@
+{
+	"name": "dfd_gold_fact_facturacion",
+	"properties": {
+		"folder": {
+			"name": "gold"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_silver_billing",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_gold_dim_paciente",
+						"type": "DatasetReference"
+					},
+					"name": "source2"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_gold_dim_departamento",
+						"type": "DatasetReference"
+					},
+					"name": "source3"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_gold_dim_servicio_cargo",
+						"type": "DatasetReference"
+					},
+					"name": "source4"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_gold_fact_facturacion",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "lookup1"
+				},
+				{
+					"name": "lookup2"
+				},
+				{
+					"name": "lookup3"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          billing_id as integer,",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          department as string,",
+				"          charge_type as string,",
+				"          payment_status as string,",
+				"          amount as decimal(12,2),",
+				"          fecha_pago_key as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT b.billing_id,\\n       b.admission_id,\\n       a.patient_id,\\n       a.department,\\n       b.charge_type,\\n       b.payment_status,\\n       b.amount,\\n       CASE WHEN b.payment_date IS NULL THEN NULL\\n            ELSE CONVERT(INT, CONVERT(CHAR(8), b.payment_date, 112)) END AS fecha_pago_key\\nFROM silver.billing b\\nJOIN silver.admissions a ON a.admission_id = b.admission_id',",
+				"     format: 'query') ~> source1",
+				"source(output(",
+				"          paciente_key as integer,",
+				"          patient_id_bk as integer,",
+				"          nombre_completo as string,",
+				"          genero as string,",
+				"          fecha_nacimiento as date,",
+				"          rango_etario as string,",
+				"          correo_electronico as string,",
+				"          direccion as string,",
+				"          proveedor_seguro as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source2",
+				"source(output(",
+				"          departamento_key as integer,",
+				"          nombre_departamento as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source3",
+				"source(output(",
+				"          servicio_cargo_key as integer,",
+				"          tipo_cargo as string,",
+				"          estado_pago as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source4",
+				"source1, source2 lookup(patient_id == patient_id_bk,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> lookup1",
+				"lookup1, source3 lookup(department == nombre_departamento,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> lookup2",
+				"lookup2, source4 lookup(charge_type == tipo_cargo",
+				"     && payment_status == estado_pago,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> lookup3",
+				"lookup3 sink(allowSchemaDrift: false,",
+				"     validateSchema: false,",
+				"     input(",
+				"          facturacion_key as long,",
+				"          billing_id_bk as integer,",
+				"          admission_id_bk as integer,",
+				"          paciente_key as integer,",
+				"          departamento_key as integer,",
+				"          servicio_cargo_key as integer,",
+				"          fecha_pago_key as integer,",
+				"          monto_facturado as decimal(12,2),",
+				"          conteo_transacciones as integer",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          billing_id_bk = billing_id,",
+				"          admission_id_bk = admission_id,",
+				"          paciente_key,",
+				"          departamento_key,",
+				"          servicio_cargo_key,",
+				"          fecha_pago_key,",
+				"          monto_facturado = amount",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
