@@ -1,6 +1,9 @@
 {
 	"name": "dfd_silver_patients",
 	"properties": {
+		"folder": {
+			"name": "silver"
+		},
 		"type": "MappingDataFlow",
 		"typeProperties": {
 			"sources": [
